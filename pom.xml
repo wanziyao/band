@@ -1,8 +1,8 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
-	<groupId>com.taobao.yugong</groupId>
-	<artifactId>yugong</artifactId>
+	<groupId>com.alibaba</groupId>
+	<artifactId>band</artifactId>
 	<packaging>jar</packaging>
 	<name>yugong module for ${project.version}</name>
 	<version>1.0.4-SNAPSHOT</version>
@@ -157,13 +157,18 @@
 			<version>1.0.17</version>
 		</dependency>
 		<!-- oracle -->
-		<dependency>
-			<groupId>com.oracle</groupId>
-			<artifactId>ojdbc14</artifactId>
-			<version>10.2.0.3.0</version>
-			<scope>system</scope>
-			<systemPath>${user.dir}/lib/ojdbc14-10.2.0.3.0.jar</systemPath>
-		</dependency>
+		<!--<dependency>-->
+			<!--<groupId>com.oracle</groupId>-->
+			<!--<artifactId>ojdbc14</artifactId>-->
+			<!--<version>10.2.0.3.0</version>-->
+			<!--<scope>system</scope>-->
+			<!--<systemPath>${user.dir}/lib/ojdbc14.jar</systemPath>-->
+			<dependency>
+				<groupId>com.oracle</groupId>
+				<artifactId>ojdbc14</artifactId>
+				<version>10.2.0.4.0</version>
+			</dependency>
+		<!--</dependency>-->
 		<dependency>
 			<groupId>commons-configuration</groupId>
 			<artifactId>commons-configuration</artifactId>
@@ -213,6 +218,16 @@
 			<version>2.10.4</version>
 			<scope>test</scope>
 		</dependency>
+		<dependency>
+			<groupId>org.elasticsearch</groupId>
+			<artifactId>elasticsearch</artifactId>
+			<version>2.3.4</version>
+		</dependency>
+        <dependency>
+            <groupId>org.apache.rocketmq</groupId>
+            <artifactId>rocketmq-client</artifactId>
+            <version>4.1.0-incubating</version>
+        </dependency>
 	</dependencies>
 
 	<build>
@@ -277,25 +292,43 @@
 				<artifactId>maven-surefire-plugin</artifactId>
 				<version>2.5</version>
 			</plugin>
-			<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-assembly-plugin</artifactId>
-				<!-- 这是最新版本，推荐使用这个版本 -->
-				<version>2.2.1</version>
-				<executions>
-					<execution>
-						<id>assemble</id>
-						<goals>
-							<goal>single</goal>
-						</goals>
-						<phase>package</phase>
-					</execution>
-				</executions>
-				<configuration>
-					<appendAssemblyId>false</appendAssemblyId>
-					<attach>false</attach>
-				</configuration>
-			</plugin>
+			<!--<plugin>-->
+				<!--<groupId>org.apache.maven.plugins</groupId>-->
+				<!--<artifactId>maven-assembly-plugin</artifactId>-->
+				<!--&lt;!&ndash; 这是最新版本，推荐使用这个版本 &ndash;&gt;-->
+				<!--<version>2.2.1</version>-->
+				<!--<executions>-->
+					<!--<execution>-->
+						<!--<id>assemble</id>-->
+						<!--<goals>-->
+							<!--<goal>single</goal>-->
+						<!--</goals>-->
+						<!--<phase>package</phase>-->
+					<!--</execution>-->
+				<!--</executions>-->
+				<!--<configuration>-->
+					<!--<appendAssemblyId>false</appendAssemblyId>-->
+					<!--<attach>false</attach>-->
+				<!--</configuration>-->
+			<!--</plugin>-->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>2.4.1</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals><goal>shade</goal></goals>
+                        <configuration>
+                            <transformers>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer">
+                                    <mainClass>com.alibaba.YuGongLauncher</mainClass>
+                                </transformer>
+                            </transformers>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-eclipse-plugin</artifactId>

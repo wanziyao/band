@@ -134,7 +134,7 @@ then
 	echo LOG CONFIGURATION : $logback_configurationFile
 	echo yugong conf : $yugong_conf
 	echo CLASSPATH :$CLASSPATH
-	$JAVA $JAVA_OPTS $JAVA_DEBUG_OPT $YUGONG_OPTS -classpath .:$CLASSPATH com.taobao.yugong.YuGongLauncher 1>>$base/logs/yugong/table.log 2>&1 &
+	$JAVA $JAVA_OPTS $JAVA_DEBUG_OPT $YUGONG_OPTS -classpath .:$CLASSPATH YuGongLauncher 1>>$base/logs/yugong/table.log 2>&1 &
 	echo $! > $base/bin/yugong.pid
 
 	echo "cd to $current_path for continue"

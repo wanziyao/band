@@ -2,9 +2,9 @@ package com.taobao.yugong.translator;
 
 import java.util.List;
 
-import com.taobao.yugong.common.model.record.Record;
-import com.taobao.yugong.common.lifecycle.AbstractYuGongLifeCycle;
-import com.taobao.yugong.translator.DataTranslator;
+import Record;
+import AbstractYuGongLifeCycle;
+import DataTranslator;
 
 public class TestDataTranslator extends AbstractDataTranslator implements DataTranslator {
 
