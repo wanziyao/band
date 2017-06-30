@@ -60,7 +60,7 @@ public class ExecutorTemplate {
                 future.get();
             } catch (Throwable e) {
                 // 取消完之后立马退出
-                cacelAllFutures();
+                cancelAllFutures();
                 throw new RuntimeException(e);
             }
         }
@@ -86,14 +86,14 @@ public class ExecutorTemplate {
 
         if (exception != null) {
             // 小于代表有错误，需要对未完成的记录进行cancel操作，对已完成的结果进行收集，做重复录入过滤记录
-            cacelAllFutures();
+            cancelAllFutures();
             throw exception;
         } else {
             return result;
         }
     }
 
-    public void cacelAllFutures() {
+    public void cancelAllFutures() {
         for (Future future : futures) {
             if (!future.isDone() && !future.isCancelled()) {
                 future.cancel(true);

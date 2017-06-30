@@ -6,8 +6,10 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ThreadFactory;
 
 import com.alibaba.common.db.meta.ColumnValue;
+import com.sun.org.apache.regexp.internal.RE;
 import org.apache.rocketmq.client.exception.MQClientException;
 import org.apache.rocketmq.client.producer.DefaultMQProducer;
 import org.apache.rocketmq.client.producer.SendResult;
@@ -47,13 +49,13 @@ public class FullRecordApplier extends AbstractRecordApplier {
     protected DbType                          dbType;
     protected boolean                         useMerge = false;
 
-    // 发送消息到tocketmq
-    private static DefaultMQProducer rocketMQProducer = new DefaultMQProducer("producerGroupName");
+    // 发送消息到rocketmq
+    private static DefaultMQProducer rocketMQProducer;
 
     public FullRecordApplier(YuGongContext context){
         this.context = context;
+        rocketMQProducer = context.getMQProducer();
         this.rocketMQProducer.setNamesrvAddr(this.context.getRocketMQNameServerAddr());
-        this.rocketMQProducer.setInstanceName("producer");
     }
 
     public void start() {
@@ -98,25 +100,27 @@ public class FullRecordApplier extends AbstractRecordApplier {
         }
 
         try {
-            for (List<Record> batchRecords : buckets.values()) {
-                Message message = new Message("FullRecordApplier", "Full", batchRecords.toString().getBytes());
-                SendResult sendResult = rocketMQProducer.send(message);
-                System.out.printf("%s%n", sendResult);
+            // 关系型数据库使用jdbctemplate，elasticsearch使用消息队列
+            for (final List<Record> batchRecords : buckets.values()) {
+                if (context.getTargetDbType().isElasticsearch()) {
+                    if (context.isBatchApply()) {
+                        sendDataMessageByBatch(batchRecords);
+                    } else {
+                        sendOneDataMessageByOne(batchRecords);
+                    }
+                } else {
+                    JdbcTemplate jdbcTemplate = new JdbcTemplate(context.getTargetDs());
+                    TableSqlUnit sqlUnit = getSqlUnit(batchRecords.get(0));
+                    if (context.isBatchApply()) {
+                        applierByBatch(jdbcTemplate, batchRecords, sqlUnit);
+                    } else {
+                        applyOneByOne(jdbcTemplate, batchRecords, sqlUnit);
+                    }
+                }
             }
         } catch (Exception e) {
-            logger.error(e.toString());
+            throw new YuGongException(e);
         }
-
-
-//        JdbcTemplate jdbcTemplate = new JdbcTemplate(context.getTargetDs());
-//        for (final List<Record> batchRecords : buckets.values()) {
-//            TableSqlUnit sqlUnit = getSqlUnit(batchRecords.get(0));
-//            if (context.isBatchApply()) {
-//                applierByBatch(jdbcTemplate, batchRecords, sqlUnit);
-//            } else {
-//                applyOneByOne(jdbcTemplate, batchRecords, sqlUnit);
-//            }
-//        }
     }
 
     /**
@@ -282,5 +286,19 @@ public class FullRecordApplier extends AbstractRecordApplier {
         }
 
         return sqlUnit;
+    }
+
+    private void sendDataMessageByBatch(List<Record> recordList) throws Exception {
+        Message message = new Message("OracleFull", null, recordList.toString().getBytes());
+        SendResult sendResult = rocketMQProducer.send(message);
+        System.out.printf("%s%n", sendResult);
+    }
+
+    private void sendOneDataMessageByOne(List<Record> recordList) throws Exception {
+        for (Record record : recordList) {
+            Message message = new Message("OracleInc", "increment", record.toString().getBytes());
+            SendResult sendResult = rocketMQProducer.send(message);
+            System.out.printf("%s%n", sendResult);
+        }
     }
 }

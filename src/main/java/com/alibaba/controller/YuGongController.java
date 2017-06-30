@@ -16,12 +16,14 @@ import javax.sql.DataSource;
 
 import com.alibaba.applier.AllRecordApplier;
 import com.alibaba.common.db.meta.ColumnMeta;
+import com.alibaba.elasticsearch.ElasticsearchService;
 import com.alibaba.extractor.oracle.OracleAllRecordExtractor;
 import com.alibaba.extractor.oracle.OracleFullRecordExtractor;
 import org.apache.commons.configuration.Configuration;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang.BooleanUtils;
 import org.apache.commons.lang.StringUtils;
+import org.apache.rocketmq.client.producer.DefaultMQProducer;
 import org.slf4j.MDC;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -192,6 +194,10 @@ public class YuGongController extends AbstractYuGongLifeCycle {
             // 设置translator的并发数
             instance.setThreadSize(config.getInt("yugong.extractor.concurrent.size", 5));
             instance.setExecutor(extractorExecutor);
+
+            if (context.getTargetDbType().isElasticsearch()) {
+                instance.setElasticsearchService(new ElasticsearchService(context));
+            }
             instances.add(instance);
         }
 
@@ -440,17 +446,21 @@ public class YuGongController extends AbstractYuGongLifeCycle {
     private YuGongContext initGlobalContext() {
         YuGongContext context = new YuGongContext();
         logger.info("check source database connection ...");
+        context.setSourceDbType(sourceDbType);
         context.setSourceDs(initDataSource("source"));
         logger.info("check source database is ok");
 
-        if (targetDbType.isElasticsearch()) {
+        context.setTargetDbType(targetDbType);
+        if (context.getTargetDbType().isElasticsearch()) {
             context.setRocketMQNameServerAddr(config.getString("yugong.rocketmq.nameserver.url"));
             context.setElasticClusterAddr(config.getString("yugong.elasticsearch.cluster.url"));
+            context.setMQProducer(new DefaultMQProducer("producerGroupName"));
             logger.info("target database is elasticsearch");
+        } else {
+            logger.info("create target database datasource, check target database connection ...");
+            context.setTargetDs(initDataSource("target"));
         }
 
-        logger.info("check target database connection ...");
-        context.setTargetDs(initTargetDataSource("target"));
         logger.info("check target database is ok");
 
         context.setSourceEncoding(config.getString("yugong.database.source.encode", "UTF-8"));
@@ -462,14 +472,6 @@ public class YuGongController extends AbstractYuGongLifeCycle {
         context.setSkipApplierException(config.getBoolean("yugong.table.skipApplierException", false));
         context.setRunMode(runMode);
         return context;
-    }
-
-    private DataSource initTargetDataSource(String type) {
-        if (targetDbType.isElasticsearch()) {
-            return null;
-        } else {
-            return initDataSource(type);
-        }
     }
 
     private DataSource initDataSource(String type) {

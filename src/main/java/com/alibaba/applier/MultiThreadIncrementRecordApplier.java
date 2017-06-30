@@ -14,8 +14,12 @@ import com.alibaba.common.db.meta.ColumnValue;
 import com.alibaba.common.model.YuGongContext;
 import com.alibaba.common.model.record.IncrementOpType;
 import com.alibaba.common.model.record.IncrementRecord;
+import com.alibaba.common.model.record.Record;
 import com.alibaba.common.utils.thread.NamedThreadFactory;
 import com.alibaba.exception.YuGongException;
+import org.apache.rocketmq.client.producer.DefaultMQProducer;
+import org.apache.rocketmq.client.producer.SendResult;
+import org.apache.rocketmq.common.message.Message;
 import org.slf4j.MDC;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -40,6 +44,9 @@ public class MultiThreadIncrementRecordApplier extends IncrementRecordApplier {
     private ThreadPoolExecutor executor;
     private String             executorName;
 
+    // 发送消息到rocketmq
+    private static DefaultMQProducer rocketMQProducer;
+
     public MultiThreadIncrementRecordApplier(YuGongContext context){
         super(context);
     }
@@ -58,6 +65,9 @@ public class MultiThreadIncrementRecordApplier extends IncrementRecordApplier {
         this.threadSize = threadSize;
         this.splitSize = splitSize;
         this.executor = executor;
+
+        this.rocketMQProducer = context.getMQProducer();
+        this.rocketMQProducer.setNamesrvAddr(this.context.getRocketMQNameServerAddr());
     }
 
     public void start() {
@@ -92,22 +102,41 @@ public class MultiThreadIncrementRecordApplier extends IncrementRecordApplier {
         doApply(mergeRecords);
     }
 
-    protected void doApply(List records) {
-        JdbcTemplate jdbcTemplate = new JdbcTemplate(context.getTargetDs());
+    protected void doApply(List records) throws YuGongException {
+        JdbcTemplate jdbcTemplate = null;
+        if (!context.getTargetDbType().isElasticsearch()) {
+            jdbcTemplate = new JdbcTemplate(context.getTargetDs());
+        }
 
         Map<List<String>, Map<IncrementOpType, List<IncrementRecord>>> buckets = buildBucket(records);
-        for (Map<IncrementOpType, List<IncrementRecord>> bucket : buckets.values()) {
-            if (context.isBatchApply()) {
-                // 优先处理delete
-                applyBatch(bucket.get(IncrementOpType.D), jdbcTemplate, IncrementOpType.D);
-                // 处理insert/update
-                applyBatch(bucket.get(IncrementOpType.I), jdbcTemplate, IncrementOpType.I);
-                applyBatch(bucket.get(IncrementOpType.U), jdbcTemplate, IncrementOpType.U);
-            } else {
-                applyOneByOne(bucket.get(IncrementOpType.D), jdbcTemplate);
-                applyOneByOne(bucket.get(IncrementOpType.I), jdbcTemplate);
-                applyOneByOne(bucket.get(IncrementOpType.U), jdbcTemplate);
+        try {
+            for (Map<IncrementOpType, List<IncrementRecord>> bucket : buckets.values()) {
+                if (context.getTargetDbType().isElasticsearch()) {
+                    if (context.isBatchApply()) {
+                        sendDataMessageByBatch(bucket.get(IncrementOpType.D), IncrementOpType.D);
+                        sendDataMessageByBatch(bucket.get(IncrementOpType.I), IncrementOpType.I);
+                        sendDataMessageByBatch(bucket.get(IncrementOpType.U), IncrementOpType.U);
+                    } else {
+                        sendOneDataMessageByOne(bucket.get(IncrementOpType.D), IncrementOpType.D);
+                        sendOneDataMessageByOne(bucket.get(IncrementOpType.I), IncrementOpType.I);
+                        sendOneDataMessageByOne(bucket.get(IncrementOpType.U), IncrementOpType.U);
+                    }
+                } else {
+                    if (context.isBatchApply()) {
+                        // 优先处理delete
+                        applyBatch(bucket.get(IncrementOpType.D), jdbcTemplate, IncrementOpType.D);
+                        // 处理insert/update
+                        applyBatch(bucket.get(IncrementOpType.I), jdbcTemplate, IncrementOpType.I);
+                        applyBatch(bucket.get(IncrementOpType.U), jdbcTemplate, IncrementOpType.U);
+                    } else {
+                        applyOneByOne(bucket.get(IncrementOpType.D), jdbcTemplate);
+                        applyOneByOne(bucket.get(IncrementOpType.I), jdbcTemplate);
+                        applyOneByOne(bucket.get(IncrementOpType.U), jdbcTemplate);
+                    }
+                }
             }
+        } catch (Exception e) {
+            throw new YuGongException(e);
         }
     }
 
@@ -274,6 +303,24 @@ public class MultiThreadIncrementRecordApplier extends IncrementRecordApplier {
             }
         } else {
             super.applyOneByOne(incRecords, jdbcTemplate);
+        }
+    }
+
+    private void sendDataMessageByBatch(List<IncrementRecord> incRecords, IncrementOpType opType) throws Exception {
+        if (YuGongUtils.isEmpty(incRecords)) {
+            return;
+        }
+
+        Message message = new Message("OracleInc", opType.name(), incRecords.toString().getBytes());
+        SendResult sendResult = rocketMQProducer.send(message);
+        System.out.printf("%s%n", sendResult);
+    }
+
+    private void sendOneDataMessageByOne(List<IncrementRecord> incRecords, IncrementOpType opType) throws Exception {
+        for (Record record : incRecords) {
+            Message message = new Message("OracleInc", opType.name(), record.toString().getBytes());
+            SendResult sendResult = rocketMQProducer.send(message);
+            System.out.printf("%s%n", sendResult);
         }
     }
 }

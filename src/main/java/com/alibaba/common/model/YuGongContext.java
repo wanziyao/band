@@ -4,6 +4,7 @@ import javax.sql.DataSource;
 
 import com.alibaba.common.db.meta.Table;
 import com.alibaba.common.model.position.Position;
+import org.apache.rocketmq.client.producer.DefaultMQProducer;
 
 /**
  * yugong数据处理上下文
@@ -21,12 +22,16 @@ public class YuGongContext {
     private RunMode    runMode;
     private int        onceCrawNum;                   // 每次提取的记录数
     private int        tpsLimit             = 0;      // <=0代表不限制
+    private DbType     sourceDbType;                  // 源数据库类型
+    private DbType     targetDbType;                  // 目标数据库类型
     private DataSource sourceDs;                      // 源数据库链接
     private DataSource targetDs;                      // 目标数据库链接
     private boolean    batchApply           = false;
     private boolean    skipApplierException = false;  // 是否允许跳过applier异常
     private String     sourceEncoding       = "UTF-8";
     private String     targetEncoding       = "UTF-8";
+
+    private DefaultMQProducer rocketMQProducer;
 
     // 同步到ES时的rocketmq的name server地址和elasticsearch cluster地址
     private String rocketMQNameServerAddr;
@@ -46,6 +51,22 @@ public class YuGongContext {
 
     public void setOnceCrawNum(int onceCrawNum) {
         this.onceCrawNum = onceCrawNum;
+    }
+
+    public void setSourceDbType(DbType sourceDbType) {
+        this.sourceDbType = sourceDbType;
+    }
+
+    public DbType getSourceDbType() {
+        return sourceDbType;
+    }
+
+    public void setTargetDbType(DbType targetDbType) {
+        this.targetDbType = targetDbType;
+    }
+
+    public DbType getTargetDbType() {
+        return targetDbType;
     }
 
     public DataSource getSourceDs() {
@@ -144,10 +165,20 @@ public class YuGongContext {
         return this.elasticClusterAddr;
     }
 
+    public void setMQProducer(DefaultMQProducer producer) {
+        this.rocketMQProducer = producer;
+    }
+
+    public DefaultMQProducer getMQProducer() {
+        return this.rocketMQProducer;
+    }
+
     public YuGongContext cloneGlobalContext() {
         YuGongContext context = new YuGongContext();
         context.setRunMode(runMode);
         context.setBatchApply(batchApply);
+        context.setSourceDbType(sourceDbType);
+        context.setTargetDbType(targetDbType);
         context.setSourceDs(sourceDs);
         context.setTargetDs(targetDs);
         context.setSourceEncoding(sourceEncoding);
@@ -158,6 +189,7 @@ public class YuGongContext {
         context.setSkipApplierException(skipApplierException);
         context.setRocketMQNameServerAddr(rocketMQNameServerAddr);
         context.setElasticClusterAddr(elasticClusterAddr);
+        context.setMQProducer(rocketMQProducer);
         return context;
     }
 

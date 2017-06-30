@@ -1,10 +1,7 @@
 package com.alibaba.controller;
 
 import java.util.List;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 
 import com.alibaba.common.YuGongConstants;
@@ -20,6 +17,7 @@ import com.alibaba.common.stats.ProgressTracer;
 import com.alibaba.common.stats.StatAggregation;
 import com.alibaba.common.utils.thread.ExecutorTemplate;
 import com.alibaba.common.utils.thread.NamedThreadFactory;
+import com.alibaba.elasticsearch.ElasticsearchService;
 import com.alibaba.exception.YuGongException;
 import com.alibaba.positioner.RecordPositioner;
 import com.alibaba.translator.BackTableDataTranslator;
@@ -39,6 +37,7 @@ import com.alibaba.common.model.record.Record;
 import com.alibaba.common.utils.YuGongUtils;
 import com.alibaba.common.utils.thread.YuGongUncaughtExceptionHandler;
 import com.alibaba.extractor.RecordExtractor;
+import sun.nio.ch.ThreadPool;
 
 /**
  * 代表一个同步迁移任务
@@ -78,6 +77,9 @@ public class YuGongInstance extends AbstractYuGongLifeCycle {
     private ThreadPoolExecutor   executor;
     private String               executorName;
 
+    // elasticsearch
+    private ElasticsearchService elasticsearchService;
+
     public YuGongInstance(YuGongContext context){
         this.context = context;
         this.tableShitKey = context.getTableMeta().getFullName();
@@ -99,6 +101,10 @@ public class YuGongInstance extends AbstractYuGongLifeCycle {
                     new ArrayBlockingQueue(threadSize * 2),
                     new NamedThreadFactory(executorName),
                     new ThreadPoolExecutor.CallerRunsPolicy());
+            }
+
+            if (context.getTargetDbType().isElasticsearch()) {
+                elasticsearchService.start();
             }
 
             // 后续可改进为按类型识别添加
@@ -383,6 +389,10 @@ public class YuGongInstance extends AbstractYuGongLifeCycle {
             positioner.stop();
         }
 
+        if (context.getTargetDbType().isElasticsearch()) {
+            elasticsearchService.stop();
+        }
+
         executor.shutdownNow();
 
         exception = null;
@@ -491,6 +501,10 @@ public class YuGongInstance extends AbstractYuGongLifeCycle {
 
     public void setExecutor(ThreadPoolExecutor executor) {
         this.executor = executor;
+    }
+
+    public void setElasticsearchService(ElasticsearchService elasticsearchService) {
+        this.elasticsearchService = elasticsearchService;
     }
 
 }

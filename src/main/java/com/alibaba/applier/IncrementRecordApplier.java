@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 
 import com.alibaba.common.db.meta.ColumnValue;
+import com.alibaba.common.model.record.IncrementOpType;
 import com.alibaba.exception.YuGongException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -53,7 +54,7 @@ public class IncrementRecordApplier extends AbstractRecordApplier {
 
     public void start() {
         super.start();
-        dbType = YuGongUtils.judgeDbType(context.getTargetDs());
+//        dbType = YuGongUtils.judgeDbType(context.getTargetDs());
         insertSqlCache = MigrateMap.makeMap();
         updateSqlCache = MigrateMap.makeMap();
         deleteSqlCache = MigrateMap.makeMap();
